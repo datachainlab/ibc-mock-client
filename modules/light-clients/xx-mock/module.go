@@ -8,7 +8,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/datachainlab/ibc-mock-client/modules/light-clients/xx-mock/types"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/spf13/cobra"
 )
 
 // ----------------------------------------------------------------------------
@@ -26,41 +25,33 @@ func (AppModule) IsOnePerModuleType() {}
 // IsAppModule implements the appmodule.AppModule interface.
 func (AppModule) IsAppModule() {}
 
-// AppModuleBasic implements the AppModuleBasic interface for the capability module.
-type AppModuleBasic struct {
-}
+// AppModuleBasic defines the basic application module used by the mock light client.
+// Only the RegisterInterfaces function needs to be implemented. All other function perform
+// a no-op.
+type AppModuleBasic struct{}
 
-// Name returns the capability module's name.
+// Name returns the mock module name.
 func (AppModuleBasic) Name() string {
 	return types.ModuleName
 }
 
-// RegisterLegacyAminoCodec implements AppModuleBasic interface
+// RegisterLegacyAminoCodec performs a no-op. The Mock client does not support amino.
 func (AppModuleBasic) RegisterLegacyAminoCodec(*codec.LegacyAmino) {}
 
-// RegisterInterfaces registers module concrete types into protobuf Any.
+// RegisterInterfaces registers module concrete types into protobuf Any. This allows core IBC
+// to unmarshal mock light client types.
 func (AppModuleBasic) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	types.RegisterInterfaces(registry)
 }
 
 func (AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {}
 
-// GetTxCmd returns the capability module's root tx command.
-func (a AppModuleBasic) GetTxCmd() *cobra.Command {
-	return nil
-}
-
-// GetQueryCmd returns the capability module's root query command.
-func (AppModuleBasic) GetQueryCmd() *cobra.Command {
-	return nil
-}
-
-// AppModule is the application module for the Solomachine client module
+// AppModule is the application module for the Mock client module
 type AppModule struct {
 	AppModuleBasic
 }
 
-// NewAppModule creates a new Solomachine client module
+// NewAppModule creates a new Mock client module
 func NewAppModule() AppModule {
 	return AppModule{}
 }
