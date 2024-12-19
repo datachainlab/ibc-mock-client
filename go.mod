@@ -8,7 +8,7 @@ require (
 	cosmossdk.io/store v1.0.2
 	github.com/cosmos/cosmos-sdk v0.50.5
 	github.com/cosmos/gogoproto v1.4.11
-	github.com/cosmos/ibc-go/v8 v8.2.0
+	github.com/cosmos/ibc-go/v8 v8.2.1
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 )
 
