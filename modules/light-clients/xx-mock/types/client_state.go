@@ -89,6 +89,39 @@ func (cs ClientState) Initialize(ctx sdk.Context, cdc codec.BinaryCodec, clientS
 
 }
 
+// sha256(abi.encodePacked(height.toUint128(), sha256(prefix), sha256(path), sha256(value)))
+func makeProof(height exported.Height, path exported.Path, value []byte) ([]byte, error) {
+	revisionNumber := height.GetRevisionNumber()
+	revisionHeight := height.GetRevisionHeight()
+
+	heightBuf := make([]byte, 16)
+	binary.BigEndian.PutUint64(heightBuf[:8], revisionNumber)
+	binary.BigEndian.PutUint64(heightBuf[8:], revisionHeight)
+
+	merklePath := path.(commitmenttypes.MerklePath)
+	mPrefix, err := merklePath.GetKey(0)
+	if err != nil {
+		return nil, cosmossdkerrors.Wrapf(err, "invalid merkle path key at index 0")
+	}
+	mPath, err := merklePath.GetKey(1)
+	if err != nil {
+		return nil, cosmossdkerrors.Wrapf(err, "invalid merkle path key at index 1")
+	}
+	hashPrefix := sha256.Sum256([]byte(mPrefix))
+	hashPath := sha256.Sum256([]byte(mPath))
+
+	hashValue := sha256.Sum256([]byte(value))
+
+	var combined []byte
+	combined = append(combined, heightBuf...)
+	combined = append(combined, hashPrefix[:]...)
+	combined = append(combined, hashPath[:]...)
+	combined = append(combined, hashValue[:]...)
+
+	h := sha256.Sum256(combined)
+	return h[:], nil
+}
+
 // VerifyMembership is a generic proof verification method which verifies a proof of the existence of a value at a given CommitmentPath at the specified height.
 // The caller is expected to construct the full CommitmentPath from a CommitmentPrefix and a standardized path (as defined in ICS 24).
 func (cs ClientState) VerifyMembership(
@@ -117,34 +150,10 @@ func (cs ClientState) VerifyMembership(
 		return cosmossdkerrors.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
 	}
 
-	// sha256(abi.encodePacked(height.toUint128(), sha256(prefix), sha256(path), sha256(value)))
-	revisionNumber := height.GetRevisionNumber()
-	revisionHeight := height.GetRevisionHeight()
-
-	heightBuf := make([]byte, 16)
-	binary.BigEndian.PutUint64(heightBuf[:8], revisionNumber)
-	binary.BigEndian.PutUint64(heightBuf[8:], revisionHeight)
-
-	merklePath := path.(commitmenttypes.MerklePath)
-	mPrefix, err := merklePath.GetKey(0)
+	h, err := makeProof(height, path, value)
 	if err != nil {
-		return cosmossdkerrors.Wrapf(err, "invalid merkle path key at index 0")
+		return err
 	}
-	mPath, err := merklePath.GetKey(1)
-	if err != nil {
-		return cosmossdkerrors.Wrapf(err, "invalid merkle path key at index 1")
-	}
-
-	hashPrefix := sha256.Sum256([]byte(mPrefix))
-	hashPath := sha256.Sum256([]byte(mPath))
-	hashValue := sha256.Sum256([]byte(value))
-
-	var combined []byte
-	combined = append(combined, heightBuf...)
-	combined = append(combined, hashPrefix[:]...)
-	combined = append(combined, hashPath[:]...)
-	combined = append(combined, hashValue[:]...)
-	h := sha256.Sum256(combined)
 
 	if !bytes.Equal(proof, h[:]) {
 		return cosmossdkerrors.Wrapf(ErrInvalidProof, "expected the proof '%X', actually got '%X'", h, proof)
@@ -180,8 +189,13 @@ func (cs ClientState) VerifyNonMembership(
 		return cosmossdkerrors.Wrap(clienttypes.ErrConsensusStateNotFound, "please ensure the proof was constructed against a height that exists on the client")
 	}
 
-	if len(proof) != 0 {
-		return cosmossdkerrors.Wrapf(ErrInvalidProof, "expected the empty proof, actually got '%X'", proof)
+	h, err := makeProof(height, path, []byte{})
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(proof, h[:]) {
+		return cosmossdkerrors.Wrapf(ErrInvalidProof, "expected the proof '%X', actually got '%X'", h, proof)
 	}
 
 	return nil
